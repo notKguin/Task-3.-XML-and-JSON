@@ -1,0 +1,214 @@
+{% extends "recepie/base.html" %}
+{% block title %}Импорт/экспорт (XML){% endblock %}
+
+{% block content %}
+  <h1 class="mt-3">Импорт/экспорт рецептов (XML)</h1>
+
+  <section class="mt-4">
+    <form method="post" action="{% url 'save_data' %}" class="card card-body mt-2">
+      {% csrf_token %}
+
+      <div class="row g-3">
+        <h2 class="h4">Ввод рецепта и сохранение в XML</h2>
+        <div class="col-md-11">
+          <label class="form-label">Название</label>
+          {{ recipe_form.title }}
+          {% for err in recipe_form.title.errors %}
+            <div class="invalid-feedback d-block">{{ err }}</div>
+          {% endfor %}
+        </div>
+
+        <div class="col-md-1">
+          <label class="form-label">Порций</label>
+          <div class="input-group input-group-sm">
+            {{ recipe_form.servings }}
+          </div>
+          {% for err in recipe_form.servings.errors %}
+            <div class="invalid-feedback d-block">{{ err }}</div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <hr class="my-4"/>
+
+      <!-- Ингредиенты -->
+      <h3 class="h5">Ингредиенты</h3>
+      {{ ing_formset.management_form }}
+      <div id="ing-list" class="vstack gap-2">
+        {% for f in ing_formset.forms %}
+          <div class="row g-2 align-items-end ing-item">
+            <div class="col-md-9">
+              <label class="form-label">Название</label>
+              {{ f.name }}
+              {% for err in f.name.errors %}
+                <div class="invalid-feedback d-block">{{ err }}</div>
+              {% endfor %}
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Кол-во</label>
+              {{ f.amount }}
+              {% for err in f.amount.errors %}
+                <div class="invalid-feedback d-block">{{ err }}</div>
+              {% endfor %}
+            </div>
+            <div class="col-md-1">
+              <label class="form-label">Ед.</label>
+              {{ f.unit }}
+              {% for err in f.unit.errors %}
+                <div class="invalid-feedback d-block">{{ err }}</div>
+              {% endfor %}
+            </div>
+            {% if ing_formset.can_delete %}
+              <div class="col-auto d-none">
+                {{ f.DELETE }}
+              </div>
+            {% endif %}
+            {% if forloop.first %}
+              <div class="col-12">
+                {% for err in f.non_field_errors %}
+                  <div class="invalid-feedback d-block">{{ err }}</div>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+      <div class="mt-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="add-ing">Добавить ингредиент</button>
+      </div>
+
+      <hr class="my-4"/>
+
+      <!-- Шаги -->
+      <h3 class="h5">Шаги приготовления</h3>
+      {{ step_formset.management_form }}
+      <div id="step-list" class="vstack gap-2">
+        {% for f in step_formset.forms %}
+          <div class="row g-2 align-items-end step-item">
+            <div class="col-md-12">
+              {{ f.text }}
+              {% for err in f.text.errors %}
+                <div class="invalid-feedback d-block">{{ err }}</div>
+              {% endfor %}
+            </div>
+            {% if step_formset.can_delete %}
+              <div class="col-auto d-none">
+                {{ f.DELETE }}
+              </div>
+            {% endif %}
+            {% if forloop.first %}
+              <div class="col-12">
+                {% for err in f.non_field_errors %}
+                  <div class="invalid-feedback d-block">{{ err }}</div>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+      <div class="mt-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="add-step">Добавить шаг</button>
+      </div>
+
+      <div class="mt-4">
+        <button type="submit" class="btn btn-primary">Сохранить XML</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="mt-4">
+    <h2 class="h4">2 Загрузка готового XML и валидация</h2>
+    <form method="post" enctype="multipart/form-data" action="{% url 'upload_file' %}" class="card card-body mt-2">
+      {% csrf_token %}
+      <div class="input-group input-group-sm">
+        {{ upload_form.file }}
+        <button class="btn btn-success" type="submit">Загрузить</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="mt-4">
+    <h2 class="h4">Файлы на сервере</h2>
+    {% if not files_json and not files_xml %}
+      <div class="alert alert-secondary">Файлы не найдены. Сохраните или загрузите что-нибудь.</div>
+    {% else %}
+      <div class="row g-4">
+        {% if files_xml %}
+          <div class="col-md-6">
+            <div class="card h-100">
+              <div class="card-header">XML ({{ files_xml|length }})</div>
+              <ul class="list-group list-group-flush">
+                {% for f in files_xml %}
+                  <li class="list-group-item">
+                    <a href="{% url 'view_file' 'xml' f %}">{{ f }}</a>
+                  </li>
+                {% endfor %}
+              </ul>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    {% endif %}
+    <p class="text-muted mt-3">Файлы лежат в папке: <code class="mono">{{ data_dir }}</code></p>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  // ---- Ингредиенты ----
+  const ingList = document.getElementById('ing-list');
+  const addIngBtn = document.getElementById('add-ing');
+  const ingTotal = document.getElementById('id_ing-TOTAL_FORMS');
+
+  function addIngRow() {
+    const idx = parseInt(ingTotal.value, 10);
+    const template = `
+      <div class="row g-2 align-items-end ing-item">
+        <div class="col-md-6">
+          <label class="form-label">Название</label>
+          <input type="text" name="ing-${idx}-name" class="form-control form-control-sm" placeholder="Сахар">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Кол-во</label>
+          <input type="number" name="ing-${idx}-amount" class="form-control form-control-sm" placeholder="100" step="0.1" min="0">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Ед.</label>
+          <select name="ing-${idx}-unit" class="form-select form-select-sm">
+            <option value="г">г</option>
+            <option value="кг">кг</option>
+            <option value="мл">мл</option>
+            <option value="л">л</option>
+            <option value="шт">шт</option>
+            <option value="ч.л.">ч.л.</option>
+            <option value="ст.л.">ст.л.</option>
+          </select>
+        </div>
+      </div>`;
+    ingList.insertAdjacentHTML('beforeend', template);
+    ingTotal.value = idx + 1;
+  }
+  if (addIngBtn) addIngBtn.addEventListener('click', addIngRow);
+
+  // ---- Шаги ----
+  const stepList = document.getElementById('step-list');
+  const addStepBtn = document.getElementById('add-step');
+  const stepTotal = document.getElementById('id_step-TOTAL_FORMS');
+
+  function addStepRow() {
+    const idx = parseInt(stepTotal.value, 10);
+    const template = `
+      <div class="row g-2 align-items-end step-item">
+        <div class="col-md-12">
+          <label class="form-label">Шаг</label>
+          <input type="text" name="step-${idx}-text" class="form-control form-control-sm" placeholder="Описание шага">
+        </div>
+      </div>`;
+    stepList.insertAdjacentHTML('beforeend', template);
+    stepTotal.value = idx + 1;
+  }
+  if (addStepBtn) addStepBtn.addEventListener('click', addStepRow);
+})();
+</script>
+{% endblock %}
