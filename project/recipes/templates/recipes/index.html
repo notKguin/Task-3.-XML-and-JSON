@@ -1,4 +1,3 @@
-{% load recipe_extras %}
 <!doctype html>
 <html lang="ru">
 <head>
@@ -9,8 +8,13 @@
 </head>
 <body>
 <div class="container">
-  <h1 class="mb-4">Рецепты (автоматически)</h1>
+  <h1 class="mb-4">Рецепты</h1>
 
+  {% if message %}
+    <div class="alert alert-info">{{ message }}</div>
+  {% endif %}
+
+  <!-- Форма добавления рецепта -->
   <form method="post" class="mb-4">
     {% csrf_token %}
     {% for field in fields %}
@@ -23,7 +27,17 @@
         {% endif %}
       </div>
     {% endfor %}
-    <button class="btn btn-primary">Сохранить</button>
+    <button type="submit" name="add_recipe" class="btn btn-primary">Сохранить рецепт</button>
+  </form>
+
+  <!-- Форма загрузки XML -->
+  <form method="post" enctype="multipart/form-data" class="mb-4">
+    {% csrf_token %}
+    <div class="mb-2">
+      <label>Загрузить XML файл:</label>
+      <input type="file" name="xml_file" class="form-control">
+    </div>
+    <button type="submit" name="upload_xml" class="btn btn-success">Импортировать XML</button>
   </form>
 
   {% if xml_exists %}
